@@ -1,0 +1,73 @@
+# ================================
+# Environment & Secrets
+# ================================
+.env
+.env.*
+!.env.example
+
+# ================================
+# Python Virtual Environments
+# ================================
+venv/
+.venv/
+env/
+ENV/
+
+# ================================
+# Python Cache & Build Artifacts
+# ================================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ================================
+# Python Packaging
+# ================================
+build/
+dist/
+*.egg-info/
+
+# ================================
+# Logs
+# ================================
+*.log
+logs/
+
+# ================================
+# Data & Local Storage
+# ================================
+data/raw_uploads/
+data/processed_docs/
+data/vector_index/
+
+# ================================
+# Frontend (Node / React)
+# ================================
+node_modules/
+dist/
+build/
+
+# ================================
+# IDE & OS Files
+# ================================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ================================
+# Jupyter
+# ================================
+.ipynb_checkpoints/
+
+# ================================
+# Docker
+# ================================
+*.env.docker
+docker-compose.override.yml
