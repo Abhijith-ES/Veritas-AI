@@ -42,9 +42,9 @@ logs/
 # ================================
 # Data & Local Storage
 # ================================
-backend/app/data/raw_uploads/
-backend/app/data/processed_docs/
-backend/app/data/vector_index/
+backend/data/raw_uploads/
+backend/data/processed_docs/
+backend/data/vector_index/
 
 # ================================
 # Frontend (Node / React)
