@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="app-container">
+
+    <header class="header">
+        <h1>Veritas AI</h1>
+        <p>Document-grounded AI assistant</p>
+    </header>
+
+    <section class="upload-section">
+        <input type="file" id="fileInput" multiple />
+        <button onclick="uploadFiles()">Upload Documents</button>
+        <div id="uploadStatus"></div>
+        <ul id="uploadedFiles" class="uploaded-files"></ul>
+    </section>
+
+    <!-- System Alert -->
+    <div id="systemAlert" class="system-alert hidden">
+        <span class="alert-text">
+            Please upload at least one document before asking a question.
+        </span>
+        <button class="alert-close" onclick="closeAlert()">×</button>
+    </div>
+
+    <section class="chat-section">
+        <div id="chatBox" class="chat-box"></div>  
+
+        <div class="input-area">
+            <textarea
+                id="userInput"
+                placeholder="Ask a question based on uploaded documents..."
+                rows="2"
+            ></textarea>
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </section>
+
+</div>
+
+<script src="{{ url_for('static', filename='chat.js') }}"></script>
+
+{% endblock %}
