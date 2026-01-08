@@ -110,7 +110,7 @@ function uploadFiles() {
     })
     .then(res => res.json())
     .then(() => {
-        status.innerText = "Documents indexed successfully.";
+        status.innerText = "Documents Uploaded successfully.";
         documentsUploaded = true;
 
         // Append uploaded files to list
