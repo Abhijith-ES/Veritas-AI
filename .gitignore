@@ -4,7 +4,7 @@
 .env
 .env.*
 !.env.example
-backend/service_account.json
+
 # ================================
 # Python Virtual Environments
 # ================================
@@ -42,9 +42,7 @@ logs/
 # ================================
 # Data & Local Storage
 # ================================
-backend/data/raw_uploads/
-backend/data/processed_docs/
-backend/data/vector_index/
+backend/data
 
 # ================================
 # Frontend (Node / React)
