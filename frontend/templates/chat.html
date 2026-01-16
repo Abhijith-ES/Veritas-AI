@@ -8,9 +8,16 @@
         <p>Document-grounded AI assistant</p>
     </header>
 
+    <!-- Upload Section (Drive Only) -->
     <section class="upload-section">
-        <input type="file" id="fileInput" multiple />
-        <button onclick="uploadFiles()">Upload Documents</button>
+        <label for="driveFileSelect"><strong>Select document from Google Drive</strong></label><br><br>
+
+        <select id="driveFileSelect">
+            <option value="">-- Select a file --</option>
+        </select>
+
+        <button onclick="uploadDriveFile()">Upload Document</button>
+
         <div id="uploadStatus"></div>
         <ul id="uploadedFiles" class="uploaded-files"></ul>
     </section>
@@ -24,7 +31,7 @@
     </div>
 
     <section class="chat-section">
-        <div id="chatBox" class="chat-box"></div>  
+        <div id="chatBox" class="chat-box"></div>
 
         <div class="input-area">
             <textarea
@@ -38,6 +45,5 @@
 
 </div>
 
-<script src="{{ url_for('static', filename='chat.js') }}"></script>
-
 {% endblock %}
+
