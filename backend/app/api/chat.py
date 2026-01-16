@@ -1,20 +1,13 @@
 from fastapi import APIRouter
-from pydantic import BaseModel
-
-from app.embeddings.model import EmbeddingModel
-from app.vectorstore.faiss_store import FAISSVectorStore
-from app.retrieval.retriever import Retriever
-from app.retrieval.reranker import Reranker
-from app.llm.generator import AnswerGenerator
-from app.validation.validator import AnswerValidator
+from pydantic import BaseModel, Field
+from app.core.state import app_state
 from app.llm.refusal import REFUSAL_MESSAGE
-
 
 router = APIRouter()
 
 
 class ChatRequest(BaseModel):
-    query: str
+    query: str = Field(..., min_length=1, max_length=1000)
 
 
 class ChatResponse(BaseModel):
@@ -27,37 +20,31 @@ def chat(request: ChatRequest):
     if not query:
         return ChatResponse(answer=REFUSAL_MESSAGE)
 
-    embedding_model = EmbeddingModel()
-    vector_store = FAISSVectorStore(dim=384, index_path="data/vector_index/veritas")
-
-    try:
-        vector_store.load()
-    except Exception:
-        return ChatResponse(answer=REFUSAL_MESSAGE)
-
-    retriever = Retriever(embedding_model, vector_store)
-    reranker = Reranker()
-    generator = AnswerGenerator()
-    validator = AnswerValidator()
-
-    # Step 1: Retrieve
-    retrieved = retriever.retrieve(query)
+    with app_state.lock:
+        retrieved = app_state.retriever.retrieve(query)
 
     if not retrieved:
         return ChatResponse(answer=REFUSAL_MESSAGE)
 
-    # Step 2: Rerank (best-effort)
-    reranked = reranker.rerank(query, retrieved)
+    # Rerank
+    reranked = app_state.reranker.rerank(query, retrieved)
+    evidence = (reranked or retrieved)[:20]
 
-    # Step 3: Fallback if reranker is too aggressive
-    evidence = reranked if reranked else retrieved[:3]
+    # --- DEBUG ---
+    print("--- DEBUG: TOP 3 CHUNKS SENT TO LLM ---")
+    for i, chunk in enumerate(evidence[:3]):
+        text = chunk.get("text", "")
+        meta = chunk.get("metadata", {})
+        print(f"Chunk {i}: {text[:200]} | meta={meta}")
+    print("-------------------------------------")
 
-    # Step 4: Generate answer
-    answer = generator.generate_answer(query, evidence)
-
-    # Step 5: Validate (relaxed + safe)
-    final_answer = validator.validate(answer, evidence, query)
+    raw_answer = app_state.generator.generate_answer(query, evidence)
+    final_answer = app_state.validator.validate(
+        raw_answer, evidence, query
+    )
 
     return ChatResponse(answer=final_answer)
+
+
 
 
