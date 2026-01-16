@@ -1,45 +1,38 @@
 const chatBox = document.getElementById("chatBox");
 let documentsUploaded = false;
+const API_BASE = "http://127.0.0.1:8000/api";
 
+// ---------------- ALERTS ----------------
 function showAlert() {
     document.getElementById("systemAlert").classList.remove("hidden");
 }
-
 function closeAlert() {
     document.getElementById("systemAlert").classList.add("hidden");
 }
 
-
+// ---------------- INTRO ----------------
 function showIntroMessage() {
-    const introText = `
-        <p><strong>Hi, I’m Veritas AI !</strong><br>
-            I’m a document-grounded AI assistant that answers questions strictly
-            based on the files you upload.<br>
-            Upload your documents to get started.
-        </p>
-    `;
-
-    appendMessage(introText, "bot");
+    appendMessage(`
+        <p><strong>Hi, I’m Veritas AI!</strong><br>
+        I answer questions strictly based on uploaded documents.</p>
+    `, "bot");
 }
 
-
+// ---------------- CHAT UI ----------------
 function appendMessage(html, sender, isRefusal = false) {
-    const wrapper = document.createElement("div");
-    wrapper.classList.add("message-row", sender);
+    const row = document.createElement("div");
+    row.className = `message-row ${sender}`;
 
     const bubble = document.createElement("div");
-    bubble.classList.add("message-bubble");
-
+    bubble.className = "message-bubble";
     if (isRefusal) bubble.classList.add("refusal");
 
-    // IMPORTANT: render HTML (for bold, lists, etc.)
     bubble.innerHTML = html;
-
-    wrapper.appendChild(bubble);
-    chatBox.appendChild(wrapper);
+    row.appendChild(bubble);
+    chatBox.appendChild(row);
     chatBox.scrollTop = chatBox.scrollHeight;
 
-    return wrapper;
+    return row;
 }
 
 function sendMessage() {
@@ -47,56 +40,62 @@ function sendMessage() {
     const query = input.value.trim();
     if (!query) return;
 
-    // 🚨 Guard: No documents uploaded
     if (!documentsUploaded) {
         showAlert();
         return;
     }
 
     closeAlert();
-
-    // User bubble
     appendMessage(query, "user");
     input.value = "";
 
-    // Thinking bubble
-    const thinkingRow = appendMessage(
-        "<em>Veritas is thinking…</em>",
-        "bot"
-    );
+    const thinking = appendMessage("<em>Veritas is thinking…</em>", "bot");
 
     fetch("/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query })
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({query})
     })
     .then(res => res.json())
     .then(data => {
-        chatBox.removeChild(thinkingRow);
-
+        chatBox.removeChild(thinking);
         const answer = data.answer || "";
-        const isRefusal =
-            answer.toLowerCase().includes("not available");
-
+        const isRefusal = answer.toLowerCase().includes("not available");
         appendMessage(answer, "bot", isRefusal);
     })
     .catch(() => {
-        chatBox.removeChild(thinkingRow);
-        appendMessage(
-            "<p>⚠️ Something went wrong. Please try again.</p>",
-            "bot",
-            true
-        );
+        chatBox.removeChild(thinking);
+        appendMessage("<p>⚠️ Something went wrong.</p>", "bot", true);
     });
 }
 
-function uploadFiles() {
-    const files = document.getElementById("fileInput").files;
-    if (!files.length) return;
+// ---------------- DRIVE FILES ----------------
+async function loadDriveFiles() {
+    try {
+        const response = await fetch(`${API_BASE}/drive/files`);
+        const files = await response.json();
 
-    const formData = new FormData();
-    for (let f of files) {
-        formData.append("files", f);
+        const select = document.getElementById("driveFileSelect");
+        files.forEach(file => {
+            const option = document.createElement("option");
+            option.value = file.id;
+            option.textContent = file.name;
+            select.appendChild(option);
+        });
+    } catch (err) {
+        console.error("Failed to load Drive files:", err);
+    }
+}
+
+
+function uploadDriveFile() {
+    const select = document.getElementById("driveFileSelect");
+    const fileId = select.value;
+    const fileName = select.options[select.selectedIndex]?.text;
+
+    if (!fileId) {
+        alert("Please select a file");
+        return;
     }
 
     const status = document.getElementById("uploadStatus");
@@ -104,51 +103,38 @@ function uploadFiles() {
 
     status.innerText = "Uploading…";
 
-    fetch("/upload", {
+    fetch(`${API_BASE}/upload-from-drive`, {
         method: "POST",
-        body: formData
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            file_id: fileId,
+            file_name: fileName
+        })
     })
     .then(res => res.json())
     .then(() => {
-        status.innerText = "Documents Uploaded successfully.";
+        status.innerText = "Document uploaded successfully. You Can Now Ask Questions.";
         documentsUploaded = true;
 
-        // Append uploaded files to list
-        for (let file of files) {
-            const li = document.createElement("li");
-
-            const sizeKB = (file.size / 1024).toFixed(1);
-            const size =
-                sizeKB > 1024
-                    ? (sizeKB / 1024).toFixed(1) + " MB"
-                    : sizeKB + " KB";
-
-            li.innerHTML = `
-                <span class="file-name">${file.name}</span>
-                <span class="file-size">${size}</span>
-            `;
-
-            fileList.appendChild(li);
-        }
-
-        // Clear file input so same file can be uploaded again if needed
-        document.getElementById("fileInput").value = "";
+        const li = document.createElement("li");
+        li.innerHTML = `<span class="file-name">${fileName}</span>`;
+        fileList.appendChild(li);
     })
     .catch(() => {
         status.innerText = "Upload failed.";
     });
 }
 
+// ---------------- EVENTS ----------------
+document.addEventListener("DOMContentLoaded", () => {
+    showIntroMessage();
+    loadDriveFiles();
+});
 
-// Shift + Enter to send message (ChatGPT-style)
-const inputBox = document.getElementById("userInput");
-
-inputBox.addEventListener("keydown", function (event) {
-    if (event.key === "Enter" && event.shiftKey) {
-        event.preventDefault(); // stop new line
+document.getElementById("userInput").addEventListener("keydown", e => {
+    if (e.key === "Enter" && e.shiftKey) {
+        e.preventDefault();
         sendMessage();
     }
 });
-window.addEventListener("DOMContentLoaded", () => {
-    showIntroMessage();
-});
+

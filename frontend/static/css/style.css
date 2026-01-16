@@ -157,3 +157,10 @@ button {
     cursor: pointer;
     line-height: 1;
 }
+
+select {
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    margin-right: 8px;
+}
