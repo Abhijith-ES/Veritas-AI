@@ -5,15 +5,16 @@ from app.core.state import app_state
 SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 
 
+def _ensure_drive_config():
+    if not app_state.drive_service_account_file or not app_state.drive_folder_id:
+        raise RuntimeError("Google Drive is not configured")
+
+
 def get_drive_service():
-    """
-    Creates and returns an authenticated Google Drive service
-    using config loaded into AppState.
-    """
-    drive_cfg = app_state.config["google_drive"]
+    _ensure_drive_config()
 
     creds = service_account.Credentials.from_service_account_file(
-        drive_cfg["service_account_file"],
+        str(app_state.drive_service_account_file),
         scopes=SCOPES,
     )
 
@@ -21,15 +22,11 @@ def get_drive_service():
 
 
 def list_files_in_folder():
-    """
-    Lists files inside the configured Google Drive folder.
-    """
-    drive_cfg = app_state.config["google_drive"]
-    folder_id = drive_cfg["folder_id"]
+    _ensure_drive_config()
 
     service = get_drive_service()
 
-    query = f"'{folder_id}' in parents and trashed = false"
+    query = f"'{app_state.drive_folder_id}' in parents and trashed = false"
     results = service.files().list(
         q=query,
         fields="files(id, name)",
@@ -39,9 +36,8 @@ def list_files_in_folder():
 
 
 def download_file(file_id: str, destination_path: str):
-    """
-    Downloads a Drive file to a local path.
-    """
+    _ensure_drive_config()
+
     service = get_drive_service()
     request = service.files().get_media(fileId=file_id)
 
