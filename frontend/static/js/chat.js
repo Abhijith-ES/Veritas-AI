@@ -1,6 +1,7 @@
 const chatBox = document.getElementById("chatBox");
-let documentsUploaded = false;
 const API_BASE = "http://127.0.0.1:8000/api";
+
+let documentsUploaded = false;
 
 // ---------------- ALERTS ----------------
 function showAlert() {
@@ -14,7 +15,7 @@ function closeAlert() {
 function showIntroMessage() {
     appendMessage(`
         <p><strong>Hi, I’m Veritas AI!</strong><br>
-        I answer questions strictly based on uploaded documents.</p>
+        Please connect your Google Drive and upload a document to begin.</p>
     `, "bot");
 }
 
@@ -51,10 +52,10 @@ function sendMessage() {
 
     const thinking = appendMessage("<em>Veritas is thinking…</em>", "bot");
 
-    fetch("/chat", {
+    fetch(`${API_BASE}/chat`, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({query})
+        body: JSON.stringify({ query })
     })
     .then(res => res.json())
     .then(data => {
@@ -69,6 +70,38 @@ function sendMessage() {
     });
 }
 
+// ---------------- DRIVE CONFIG ----------------
+async function configureDrive() {
+    const fileInput = document.getElementById("serviceAccountFile");
+    const folderInput = document.getElementById("folderIdInput");
+    const status = document.getElementById("driveStatus");
+
+    if (!fileInput.files.length || !folderInput.value.trim()) {
+        status.innerText = "Please provide JSON file and folder ID.";
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("service_account", fileInput.files[0]);
+    formData.append("folder_id", folderInput.value.trim());
+
+    status.innerText = "Connecting to Google Drive…";
+
+    try {
+        const res = await fetch(`${API_BASE}/drive/configure`, {
+            method: "POST",
+            body: formData
+        });
+
+        if (!res.ok) throw new Error();
+
+        status.innerText = "Drive connected successfully.";
+        loadDriveFiles();
+    } catch {
+        status.innerText = "Failed to connect Drive. Check credentials.";
+    }
+}
+
 // ---------------- DRIVE FILES ----------------
 async function loadDriveFiles() {
     try {
@@ -76,18 +109,24 @@ async function loadDriveFiles() {
         const files = await response.json();
 
         const select = document.getElementById("driveFileSelect");
+        select.innerHTML = `<option value="">-- Select a file --</option>`;
+
         files.forEach(file => {
             const option = document.createElement("option");
             option.value = file.id;
             option.textContent = file.name;
             select.appendChild(option);
         });
+
+        select.disabled = false;
+        document.getElementById("uploadBtn").disabled = false;
+
     } catch (err) {
         console.error("Failed to load Drive files:", err);
     }
 }
 
-
+// ---------------- UPLOAD ----------------
 function uploadDriveFile() {
     const select = document.getElementById("driveFileSelect");
     const fileId = select.value;
@@ -101,7 +140,7 @@ function uploadDriveFile() {
     const status = document.getElementById("uploadStatus");
     const fileList = document.getElementById("uploadedFiles");
 
-    status.innerText = "Uploading…";
+    status.innerText = "Uploading and indexing document…";
 
     fetch(`${API_BASE}/upload-from-drive`, {
         method: "POST",
@@ -113,8 +152,11 @@ function uploadDriveFile() {
     })
     .then(res => res.json())
     .then(() => {
-        status.innerText = "Document uploaded successfully. You Can Now Ask Questions.";
+        status.innerText = "Document uploaded successfully. You can now ask questions.";
         documentsUploaded = true;
+
+        document.getElementById("userInput").disabled = false;
+        document.getElementById("sendBtn").disabled = false;
 
         const li = document.createElement("li");
         li.innerHTML = `<span class="file-name">${fileName}</span>`;
@@ -125,16 +167,23 @@ function uploadDriveFile() {
     });
 }
 
-// ---------------- EVENTS ----------------
+// ---------------- INIT ----------------
 document.addEventListener("DOMContentLoaded", () => {
     showIntroMessage();
-    loadDriveFiles();
+    enableShiftEnterSend();
 });
 
-document.getElementById("userInput").addEventListener("keydown", e => {
-    if (e.key === "Enter" && e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-    }
-});
+// ---------------- SHIFT + ENTER SEND ----------------
+function enableShiftEnterSend() {
+    const input = document.getElementById("userInput");
+
+    if (!input) return;
+
+    input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" && e.shiftKey) {
+            e.preventDefault();   // prevent newline
+            sendMessage();
+        }
+    });
+}
 

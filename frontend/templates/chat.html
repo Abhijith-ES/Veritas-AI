@@ -8,15 +8,32 @@
         <p>Document-grounded AI assistant</p>
     </header>
 
-    <!-- Upload Section (Drive Only) -->
+    <!-- Drive Configuration Section -->
     <section class="upload-section">
-        <label for="driveFileSelect"><strong>Select document from Google Drive</strong></label><br><br>
+        <h3>Connect Google Drive</h3>
 
-        <select id="driveFileSelect">
+        <label><strong>Service Account JSON</strong></label><br>
+        <input type="file" id="serviceAccountFile" accept=".json"><br><br>
+
+        <label><strong>Google Drive Folder ID</strong></label><br>
+        <input type="text" id="folderIdInput" placeholder="Enter folder ID"><br><br>
+
+        <button onclick="configureDrive()">Connect Drive</button>
+
+        <div id="driveStatus"></div>
+    </section>
+
+    <!-- Drive File Selection -->
+    <section class="upload-section">
+        <label for="driveFileSelect"><strong>Select document from Drive</strong></label><br><br>
+
+        <select id="driveFileSelect" disabled>
             <option value="">-- Select a file --</option>
         </select>
 
-        <button onclick="uploadDriveFile()">Upload Document</button>
+        <button onclick="uploadDriveFile()" disabled id="uploadBtn">
+            Upload Document
+        </button>
 
         <div id="uploadStatus"></div>
         <ul id="uploadedFiles" class="uploaded-files"></ul>
@@ -30,6 +47,7 @@
         <button class="alert-close" onclick="closeAlert()">×</button>
     </div>
 
+    <!-- Chat Section -->
     <section class="chat-section">
         <div id="chatBox" class="chat-box"></div>
 
@@ -38,12 +56,14 @@
                 id="userInput"
                 placeholder="Ask a question based on uploaded documents..."
                 rows="2"
+                disabled
             ></textarea>
-            <button onclick="sendMessage()">Send</button>
+            <button onclick="sendMessage()" disabled id="sendBtn">Send</button>
         </div>
     </section>
 
 </div>
 
 {% endblock %}
+
 
