@@ -1,27 +1,39 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 
 def filter_by_document_scope(
     results: List[Dict],
-    allowed_sources: List[str] | None = None
+    allowed_sources: Optional[List[str]] = None
 ) -> List[Dict]:
-    """
-    Ensure results come only from allowed documents.
-    """
     if not allowed_sources:
         return results
 
     return [
         r for r in results
-        if r["metadata"]["source"] in allowed_sources
+        if r.get("metadata", {}).get("source") in allowed_sources
     ]
 
 
-def ensure_minimum_evidence(
+def filter_doc_level_first(
     results: List[Dict],
-    min_chunks: int = 1
-) -> bool:
+    limit: int = 5,
+    prefer_doc_level: bool = False
+) -> List[Dict]:
     """
-    Check if enough evidence exists to answer.
+    Prefer doc-level chunks ONLY when explicitly requested
+    (e.g., metadata questions).
     """
-    return len(results) >= min_chunks
+    if not prefer_doc_level:
+        return results[:limit]
+
+    doc_level = [
+        r for r in results
+        if r.get("metadata", {}).get("doc_level")
+    ]
+
+    if doc_level:
+        return doc_level[:limit]
+
+    return results[:limit]
+
+

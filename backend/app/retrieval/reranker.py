@@ -1,30 +1,63 @@
 from typing import List, Dict
 from sentence_transformers import CrossEncoder
-from app.validation.question_type import is_analytical_question, is_metadata_question
+from app.validation.question_type import is_metadata_question
 
 
 class Reranker:
     def __init__(self):
-        self.model = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+        self.model = CrossEncoder(
+            "cross-encoder/ms-marco-MiniLM-L-6-v2"
+        )
 
     def rerank(self, query: str, candidates: List[Dict]) -> List[Dict]:
         if not candidates:
             return []
 
-        # Metadata questions → NO reranking
+        # -----------------------------
+        # METADATA QUESTIONS
+        # -----------------------------
+        # Trust retrieval ordering
         if is_metadata_question(query):
-            return candidates[:3]
+            return candidates[:5]
 
-        pairs = [(query, c["metadata"]["text"]) for c in candidates]
-        scores = self.model.predict(pairs)
-
-        reranked = [
-            {"score": float(s), "metadata": c["metadata"]}
-            for c, s in zip(candidates, scores)
-            if s > 0.02
+        # -----------------------------
+        # SEPARATE BY TYPE
+        # -----------------------------
+        table_rows = [
+            c for c in candidates
+            if c.get("block_type") == "table_row"
         ]
 
-        reranked.sort(key=lambda x: x["score"], reverse=True)
-        return reranked[:5]
+        text_chunks = [
+            c for c in candidates
+            if c.get("block_type") == "text"
+        ]
+
+        # -----------------------------
+        # TABLE-FIRST POLICY
+        # -----------------------------
+        # If tables exist, trust retrieval score and return them first
+        if table_rows:
+            # Keep ordering from retriever (semantic similarity)
+            return table_rows[:5] + text_chunks[:5]
+
+        # -----------------------------
+        # TEXT RERANKING
+        # -----------------------------
+        pairs = [(query, c["text"]) for c in text_chunks]
+        scores = self.model.predict(pairs)
+
+        for c, score in zip(text_chunks, scores):
+            c["rerank_score"] = float(score)
+
+        text_chunks.sort(
+            key=lambda x: x["rerank_score"],
+            reverse=True
+        )
+
+        return text_chunks[:5]
+
+
+
 
 
