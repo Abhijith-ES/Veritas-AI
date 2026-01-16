@@ -1,6 +1,5 @@
 from pathlib import Path
 from threading import Lock
-import yaml
 from app.embeddings.model import EmbeddingModel
 from app.vectorstore.faiss_store import FAISSVectorStore
 from app.retrieval.retriever import Retriever
@@ -14,20 +13,21 @@ VECTOR_INDEX_DIR = Path("data/vector_index/veritas")
 class AppState:
     def __init__(self):
         self.lock = Lock()
+
+        # Core AI components
         self.embedding_model = None
         self.vector_store = None
         self.retriever = None
         self.reranker = None
         self.generator = None
         self.validator = None
-        self.config = None   # ✅ ADD THIS
+
+        # 🔹 Drive runtime config (USER PROVIDED)
+        self.drive_service_account_file: Path | None = None
+        self.drive_folder_id: str | None = None
 
     def initialize(self):
         with self.lock:
-            # 🔹 Load YAML config
-            with open("config.yaml", "r") as f:
-                self.config = yaml.safe_load(f)
-
             self.embedding_model = EmbeddingModel()
             self.vector_store = FAISSVectorStore(
                 dim=self.embedding_model.dimension
@@ -52,6 +52,6 @@ class AppState:
             print("INFO: AppState initialized successfully.")
 
 
-
 app_state = AppState()
+
 
