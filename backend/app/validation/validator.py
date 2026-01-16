@@ -3,28 +3,43 @@ from app.validation.question_type import (
     is_analytical_question,
     is_metadata_question,
 )
+from app.validation.confidence import confidence_score
+from app.validation.coverage import evidence_coverage_score
 from app.llm.refusal import REFUSAL_MESSAGE
 
 
 class AnswerValidator:
     def validate(self, answer: str, evidence: List[Dict], query: str) -> str:
-        # No answer generated at all → refuse
         if not answer:
             return REFUSAL_MESSAGE
 
-        # 🔹 Metadata questions (author, title, year, journal)
-        # Even a single doc-level chunk is enough
+        # -----------------------------
+        # METADATA QUESTIONS
+        # -----------------------------
         if is_metadata_question(query):
             return answer
 
-        # 🔹 Analytical / explanatory questions
+        # -----------------------------
+        # ANALYTICAL QUESTIONS
+        # -----------------------------
         if is_analytical_question(query):
-            # Allow answer if there is at least SOME grounding
-            if not evidence:
+            coverage = evidence_coverage_score(answer, evidence)
+            confidence = confidence_score(evidence)
+
+            if coverage < 0.5 or confidence < 0.3:
                 return REFUSAL_MESSAGE
+
             return answer
 
-        # 🔹 Factual / general questions
-        # Allow even with weak evidence (generator already grounded)
+        # -----------------------------
+        # FACTUAL / NUMERIC QUESTIONS
+        # -----------------------------
+        confidence = confidence_score(evidence)
+
+        if confidence < 0.2:
+            return REFUSAL_MESSAGE
+
         return answer
+
+
 

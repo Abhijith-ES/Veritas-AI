@@ -1,6 +1,6 @@
 ANALYTICAL_KEYWORDS = [
-    "explain", "describe", "how", "why", "workflow", "architecture",
-    "process", "methodology", "approach", "performance"
+    "explain", "why", "workflow", "architecture",
+    "process", "methodology", "approach"
 ]
 
 METADATA_KEYWORDS = [
@@ -10,10 +10,12 @@ METADATA_KEYWORDS = [
 
 def is_analytical_question(query: str) -> bool:
     q = query.lower()
-    return any(k in q for k in ANALYTICAL_KEYWORDS)
+    return any(q.startswith(k) or f" {k} " in q for k in ANALYTICAL_KEYWORDS)
 
 
 def is_metadata_question(query: str) -> bool:
     q = query.lower()
     return any(k in q for k in METADATA_KEYWORDS)
+
+
 
