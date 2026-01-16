@@ -1,77 +1,96 @@
-import faiss
-import numpy as np
+from typing import List, Dict, Optional
+import os
 import pickle
-from typing import List, Dict
+import numpy as np
+import faiss
 
 
 class FAISSVectorStore:
-    def __init__(self, dim: int, index_path: str):
+    """
+    Unified vector store.
+
+    - All answer-bearing chunks (text + table rows) are embedded
+    - FAISS is the single retrieval source
+    """
+
+    def __init__(self, dim: int):
         self.dim = dim
-        self.index_path = index_path
         self.index = faiss.IndexFlatIP(dim)
-        self.metadata: List[Dict] = []
+        self.records: List[Dict] = []
 
-    def add(self, vectors: np.ndarray, metadata: List[Dict]):
-        if vectors is None or len(vectors) == 0:
-            return
+    # -----------------------------
+    # ADD EMBEDDINGS
+    # -----------------------------
 
-        vectors = np.asarray(vectors, dtype="float32")
+    def add(
+        self,
+        embeddings: List[List[float]],
+        texts: List[str],
+        metadatas: Optional[List[Dict]] = None,
+    ):
+        if metadatas is None:
+            metadatas = [{} for _ in texts]
 
-        # 🔒 Dimension safety
-        if vectors.ndim == 1:
-            vectors = vectors.reshape(1, -1)
+        if len(embeddings) != len(texts) or len(texts) != len(metadatas):
+            raise ValueError("Embeddings, texts, and metadatas length mismatch")
 
-        if vectors.shape[1] != self.dim:
-            raise ValueError(
-                f"Embedding dimension mismatch: expected {self.dim}, got {vectors.shape[1]}"
-            )
-
-        # 🔒 Normalize for cosine similarity
+        vectors = np.array(embeddings, dtype="float32")
         faiss.normalize_L2(vectors)
 
+        start_idx = len(self.records)
         self.index.add(vectors)
-        self.metadata.extend(metadata)
 
-    def search(self, query_vector, top_k: int = 10):
-        # 🔒 Index empty guard
+        for i, (text, metadata) in enumerate(zip(texts, metadatas)):
+            self.records.append({
+                "index_id": start_idx + i,
+                "text": text,
+                "metadata": metadata,
+                # Preserve block_type (text or table_row)
+                "block_type": metadata.get("block_type", "text"),
+            })
+
+    # -----------------------------
+    # SEARCH
+    # -----------------------------
+
+    def search(self, query_embedding: List[float], top_k: int = 10) -> List[Dict]:
         if self.index.ntotal == 0:
             return []
 
-        query_vector = np.asarray(query_vector, dtype="float32")
+        query_vec = np.array([query_embedding], dtype="float32")
+        faiss.normalize_L2(query_vec)
 
-        if query_vector.ndim == 1:
-            query_vector = query_vector.reshape(1, -1)
-
-        if query_vector.shape[1] != self.dim:
-            raise ValueError(
-                f"Query vector dimension mismatch: expected {self.dim}, got {query_vector.shape[1]}"
-            )
-
-        # 🔒 Normalize query
-        faiss.normalize_L2(query_vector)
-
-        scores, indices = self.index.search(query_vector, top_k)
+        scores, indices = self.index.search(query_vec, top_k)
 
         results = []
         for score, idx in zip(scores[0], indices[0]):
             if idx == -1:
                 continue
-            results.append(
-                {
-                    "score": float(score),
-                    "metadata": self.metadata[idx],
-                }
-            )
+
+            record = self.records[idx]
+            results.append({
+                "text": record["text"],
+                "metadata": record["metadata"],
+                "score": float(score),
+                "block_type": record["block_type"],
+            })
 
         return results
 
-    def save(self):
-        faiss.write_index(self.index, f"{self.index_path}.index")
-        with open(f"{self.index_path}.meta", "wb") as f:
-            pickle.dump(self.metadata, f)
+    # -----------------------------
+    # PERSISTENCE
+    # -----------------------------
 
-    def load(self):
-        self.index = faiss.read_index(f"{self.index_path}.index")
-        with open(f"{self.index_path}.meta", "rb") as f:
-            self.metadata = pickle.load(f)
+    def save(self, folder_path: str):
+        os.makedirs(folder_path, exist_ok=True)
 
+        faiss.write_index(self.index, os.path.join(folder_path, "faiss.index"))
+
+        with open(os.path.join(folder_path, "records.pkl"), "wb") as f:
+            pickle.dump(self.records, f)
+
+    def load(self, folder_path: str):
+        self.index = faiss.read_index(os.path.join(folder_path, "faiss.index"))
+
+        with open(os.path.join(folder_path, "records.pkl"), "rb") as f:
+            self.records = pickle.load(f)
