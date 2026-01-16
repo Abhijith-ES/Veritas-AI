@@ -1,9 +1,12 @@
 from pathlib import Path
 from typing import List, Dict
 import re
+import uuid
 
 import pdfplumber
 from docx import Document
+
+from .table_extractor import extract_tables
 
 
 # -----------------------------
@@ -16,59 +19,12 @@ def _clean_text(text: str) -> str:
     return text.strip()
 
 
-def _is_header_row(row: List[str]) -> bool:
-    """
-    Generic heuristic to detect table header rows.
-    Works across most structured PDFs.
-    """
-    if not row:
-        return False
-
-    non_numeric_cells = 0
-    for cell in row:
-        if not cell:
-            continue
-        cell = cell.strip()
-        if not cell:
-            continue
-        if not re.search(r"\d", cell):
-            non_numeric_cells += 1
-
-    # Header rows usually have mostly non-numeric cells
-    return non_numeric_cells >= max(1, len(row) // 2)
+def _split_paragraphs(text: str) -> List[str]:
+    return [p.strip() for p in text.split("\n") if p.strip()]
 
 
-def _table_row_to_text(
-    row: List[str],
-    headers: List[str] | None = None
-) -> str:
-    cells = [c.strip() for c in row if c and c.strip()]
-    if not cells:
-        return ""
-
-    parts = ["Table Row:"]
-
-    for idx, cell in enumerate(cells):
-        if headers and idx < len(headers):
-            parts.append(f"{headers[idx]}: {cell}")
-        else:
-            parts.append(f"Column {idx + 1}: {cell}")
-
-    return " | ".join(parts)
-
-
-def _extract_metadata_from_text(text: str) -> Dict:
-    metadata = {}
-    lines = text.split("\n")
-
-    if lines:
-        metadata["title_hint"] = lines[0][:200]
-
-    year_match = re.search(r"(19|20)\d{2}", text)
-    if year_match:
-        metadata["year_hint"] = year_match.group(0)
-
-    return metadata
+def _new_block_id() -> str:
+    return uuid.uuid4().hex
 
 
 # -----------------------------
@@ -76,61 +32,46 @@ def _extract_metadata_from_text(text: str) -> Dict:
 # -----------------------------
 
 def parse_pdf(file_path: Path) -> List[Dict]:
-    pages: List[Dict] = []
+    blocks: List[Dict] = []
 
+    # -------- TEXT EXTRACTION --------
     with pdfplumber.open(file_path) as pdf:
         for page_index, page in enumerate(pdf.pages):
             page_number = page_index + 1
 
-            # -------- TEXT BLOCKS --------
             raw_text = page.extract_text()
-            if raw_text:
-                cleaned_text = _clean_text(raw_text)
-                if cleaned_text:
-                    page_data = {
-                        "text": cleaned_text,
-                        "page": page_number,
-                        "source": file_path.name,
-                        "doc_level": page_index == 0,
-                        "block_type": "text",
-                    }
+            if not raw_text:
+                continue
 
-                    if page_index == 0:
-                        page_data["metadata"] = _extract_metadata_from_text(cleaned_text)
+            cleaned = _clean_text(raw_text)
+            paragraphs = _split_paragraphs(cleaned)
 
-                    pages.append(page_data)
+            for para_index, paragraph in enumerate(paragraphs):
+                blocks.append({
+                    "block_id": _new_block_id(),
+                    "text": paragraph,
+                    "source": file_path.name,
+                    "page": page_number,
+                    "doc_level": page_index == 0 and para_index == 0,
+                    "block_type": "text",
+                })
 
-            # -------- TABLE BLOCKS --------
-            tables = page.extract_tables()
-            for table_index, table in enumerate(tables):
-                headers: List[str] | None = None
+    # -------- TABLE EXTRACTION --------
+    table_rows = extract_tables(file_path)
 
-                for row_index, row in enumerate(table):
-                    if not row:
-                        continue
+    for row in table_rows:
+        blocks.append({
+            "block_id": row["block_id"],
+            "text": row["text"],
+            "source": file_path.name,
+            "page": row.get("page"),
+            "doc_level": False,
+            "block_type": "table_row",
+            "table_id": row.get("table_id"),
+            "row_index": row.get("table_row"),
+        })
 
-                    # Detect header row
-                    if row_index == 0 and _is_header_row(row):
-                        headers = [c.strip() for c in row if c and c.strip()]
-                        continue
-
-                    row_text = _table_row_to_text(row, headers)
-                    if not row_text:
-                        continue
-
-                    pages.append(
-                        {
-                            "text": row_text,
-                            "page": page_number,
-                            "source": file_path.name,
-                            "doc_level": False,
-                            "block_type": "table_row",
-                            "table_id": f"{page_number}-{table_index}",
-                            "row_index": row_index,
-                        }
-                    )
-
-    return pages
+    return blocks
 
 
 # -----------------------------
@@ -139,24 +80,44 @@ def parse_pdf(file_path: Path) -> List[Dict]:
 
 def parse_docx(file_path: Path) -> List[Dict]:
     doc = Document(file_path)
-    paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+    blocks: List[Dict] = []
 
-    if not paragraphs:
-        return []
+    # -------- PARAGRAPHS --------
+    for para_index, paragraph in enumerate(doc.paragraphs):
+        text = paragraph.text.strip()
+        if not text:
+            continue
 
-    full_text = _clean_text("\n".join(paragraphs))
-    metadata = _extract_metadata_from_text(full_text[:1000])
-
-    return [
-        {
-            "text": full_text,
-            "page": None,
+        blocks.append({
+            "block_id": _new_block_id(),
+            "text": _clean_text(text),
             "source": file_path.name,
-            "doc_level": True,
+            "page": None,
+            "doc_level": para_index == 0,
             "block_type": "text",
-            "metadata": metadata,
-        }
-    ]
+        })
+
+    # -------- TABLES --------
+    for table_index, table in enumerate(doc.tables):
+        table_id = f"docx_table_{table_index}"
+
+        for row_index, row in enumerate(table.rows):
+            values = [cell.text.strip() for cell in row.cells]
+            if not any(values):
+                continue
+
+            blocks.append({
+                "block_id": _new_block_id(),
+                "text": " | ".join(values),
+                "source": file_path.name,
+                "page": None,
+                "doc_level": False,
+                "block_type": "table_row",
+                "table_id": table_id,
+                "row_index": row_index,
+            })
+
+    return blocks
 
 
 # -----------------------------
@@ -165,22 +126,24 @@ def parse_docx(file_path: Path) -> List[Dict]:
 
 def parse_txt(file_path: Path) -> List[Dict]:
     with open(file_path, "r", encoding="utf-8") as f:
-        raw_text = f.read()
+        raw = f.read()
 
-    cleaned_text = _clean_text(raw_text)
-    if not cleaned_text:
-        return []
+    cleaned = _clean_text(raw)
+    paragraphs = _split_paragraphs(cleaned)
 
-    metadata = _extract_metadata_from_text(cleaned_text[:1000])
+    blocks: List[Dict] = []
 
-    return [
-        {
-            "text": cleaned_text,
-            "page": None,
+    for index, paragraph in enumerate(paragraphs):
+        blocks.append({
+            "block_id": _new_block_id(),
+            "text": paragraph,
             "source": file_path.name,
-            "doc_level": True,
+            "page": None,
+            "doc_level": index == 0,
             "block_type": "text",
-            "metadata": metadata,
-        }
-    ]
+        })
+
+    return blocks
+
+
 
