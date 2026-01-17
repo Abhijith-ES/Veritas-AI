@@ -1,69 +1,82 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="app-container">
+<header class="header">
+    <h1>Veritas AI</h1>
+    <p>Document-grounded AI assistant</p>
+</header>
 
-    <header class="header">
-        <h1>Veritas AI</h1>
-        <p>Document-grounded AI assistant</p>
-    </header>
+<div class="main-layout">
 
-    <!-- Drive Configuration Section -->
-    <section class="upload-section">
-        <h3>Connect Google Drive</h3>
+    <!-- LEFT PANEL -->
+    <aside class="side-panel">
 
-        <label><strong>Service Account JSON</strong></label><br>
-        <input type="file" id="serviceAccountFile" accept=".json"><br><br>
+        <!-- Drive Configuration -->
+        <section class="upload-section">
+            <h3>Connect Google Drive</h3>
 
-        <label><strong>Google Drive Folder ID</strong></label><br>
-        <input type="text" id="folderIdInput" placeholder="Enter folder ID"><br><br>
+            <label><strong>Service Account JSON</strong></label>
+            <input type="file" id="serviceAccountFile" accept=".json">
 
-        <button onclick="configureDrive()">Connect Drive</button>
+            <label><strong>Google Drive Folder ID</strong></label>
+            <input type="text" id="folderIdInput" placeholder="Enter folder ID">
 
-        <div id="driveStatus"></div>
-    </section>
+            <button onclick="configureDrive()">Connect Drive</button>
 
-    <!-- Drive File Selection -->
-    <section class="upload-section">
-        <label for="driveFileSelect"><strong>Select document from Drive</strong></label><br><br>
+            <div id="driveStatus"></div>
+        </section>
 
-        <select id="driveFileSelect" disabled>
-            <option value="">-- Select a file --</option>
-        </select>
+        <!-- Drive File Selection -->
+        <section class="upload-section">
+            <h3>Select document from Drive</h3>
 
-        <button onclick="uploadDriveFile()" disabled id="uploadBtn">
-            Upload Document
-        </button>
+            <select id="driveFileSelect" disabled>
+                <option value="">-- Select a file --</option>
+            </select>
 
-        <div id="uploadStatus"></div>
-        <ul id="uploadedFiles" class="uploaded-files"></ul>
-    </section>
+            <button onclick="uploadDriveFile()" disabled id="uploadBtn">
+                Upload Document
+            </button>
 
-    <!-- System Alert -->
-    <div id="systemAlert" class="system-alert hidden">
-        <span class="alert-text">
-            Please upload at least one document before asking a question.
-        </span>
-        <button class="alert-close" onclick="closeAlert()">×</button>
-    </div>
+            <div id="uploadStatus"></div>
+            <ul id="uploadedFiles" class="uploaded-files"></ul>
+        </section>
 
-    <!-- Chat Section -->
-    <section class="chat-section">
-        <div id="chatBox" class="chat-box"></div>
+    </aside>
 
-        <div class="input-area">
-            <textarea
-                id="userInput"
-                placeholder="Ask a question based on uploaded documents..."
-                rows="2"
-                disabled
-            ></textarea>
-            <button onclick="sendMessage()" disabled id="sendBtn">Send</button>
+    <!-- RIGHT PANEL -->
+    <main class="chat-panel">
+
+        <!-- System Alert -->
+        <div id="systemAlert" class="system-alert hidden">
+            <span class="alert-text">
+                Please upload at least one document before asking a question.
+            </span>
+            <button class="alert-close" onclick="closeAlert()">×</button>
         </div>
-    </section>
+
+        <!-- Chat Section -->
+        <section class="chat-section">
+            <div id="chatBox" class="chat-box"></div>
+
+            <div class="input-area">
+                <textarea
+                    id="userInput"
+                    placeholder="Ask a question based on uploaded documents..."
+                    rows="2"
+                    disabled
+                ></textarea>
+                <button onclick="sendMessage()" disabled id="sendBtn">
+                    Send
+                </button>
+            </div>
+        </section>
+
+    </main>
 
 </div>
 
 {% endblock %}
+
 
 
