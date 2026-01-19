@@ -2,9 +2,12 @@ fastapi
 uvicorn
 
 python-dotenv
+python-multipart
+requests
 
 pdfplumber
 python-docx
+camelot-py[cv]
 
 sentence-transformers
 torch
@@ -12,8 +15,19 @@ torch
 faiss-cpu
 numpy
 
+langchain
 langchain-text-splitters
 
 pydantic
 groq
+
 flask
+jinja2
+
+google-api-python-client
+google-auth
+google-auth-httplib2
+google-auth-oauthlib
+
+pyyaml
+markdown
