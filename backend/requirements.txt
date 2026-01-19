@@ -14,6 +14,7 @@ torch
 
 faiss-cpu
 numpy
+pandas
 
 langchain
 langchain-text-splitters
